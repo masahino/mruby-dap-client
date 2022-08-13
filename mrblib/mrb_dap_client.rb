@@ -104,7 +104,6 @@ module DAP
 
     def send_message(message)
       json_message = message.to_json
-puts json_message
       header = 'Content-Length: ' + json_message.bytesize.to_s + "\r\n\r\n"
       begin
         @io.print header
