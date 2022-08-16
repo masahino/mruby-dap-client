@@ -120,7 +120,6 @@ module DAP
     end
 
     def support_request?(command)
-      puts @capabilities
       return true if MANDATORY_REQUESTS.include?(command)
 
       supports = "supports#{command[0].upcase}#{command[1..-1]}Request"

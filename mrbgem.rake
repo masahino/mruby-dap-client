@@ -10,4 +10,5 @@ MRuby::Gem::Specification.new('mruby-dap-client') do |spec|
   spec.add_dependency 'mruby-hash-ext'
   spec.add_dependency 'mruby-env'
   spec.add_dependency 'mruby-errno'
+  spec.add_dependency 'mruby-sleep'
 end
