@@ -1,5 +1,9 @@
 class DAPshell
   DAP_CONFIG = {
+    'mruby' => {
+      server_command: '../../mruby-dap-proxy/mruby/bin/mruby-dap-proxy',
+      type: 'mruby-dap-proxy'
+    },
     'lldb-vscode' => {
       server_command: 'lldb-vscode',
       type: 'lldb-vscode'
@@ -25,7 +29,7 @@ class DAPshell
                                 'port' => DAP_CONFIG[server_type][:port]
                               })
     # run server and send initialize
-    @client.start_debug_adapter({ 'adapterID' => DAP_CONFIG[server_type][:type] })
+    puts @client.start_debug_adapter({ 'adapterID' => DAP_CONFIG[server_type][:type] })
 
     @readings = [$stdin, @client.io]
     @thread_id = 0
@@ -71,9 +75,9 @@ class DAPshell
     command = line.split(' ')[0]
     case command
     when 'l', 'launch'
-      seq = launch(line.split[1..-1])
+      seq = launch(line.split[1..])
     when 'a', 'attach'
-      seq = attach(line.split[1..-1])
+      seq = attach(line.split[1..])
     when 'b'
       seq = breakpoint(line.split[1])
     when 'bl'
@@ -86,6 +90,10 @@ class DAPshell
       seq = @client.continue({ 'threadId' => @thread_id })
     when 'stackTrace'
       seq = @client.stackTrace({ 'threadId' => @thread_id })
+    when 'scopes'
+      seq = @client.scopes({ 'frameId' => line.split(' ')[1].to_i })
+    when 'variables'
+      seq = @client.variables({ 'variablesReference' => line.split(' ')[1].to_i })
     when 'q', 'quit'
       shutdown
     when nil

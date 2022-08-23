@@ -2,7 +2,7 @@ module DAP
   # dap client
   class Client
     attr_accessor :recv_buffer, :request_buffer, :status, :io, :file_version, :logfile,
-                  :adapter, :adapter_capabilities, :client_breakpoints
+                  :adapter, :adapter_capabilities, :source_breakpoints
 
     DEFAULT_INITIALIZE_ARGUMENTS = {
       # The ID of the client using this adapter.
@@ -47,18 +47,20 @@ module DAP
       @adapter = Adapter.new(command, args)
       @recv_buffer = []
       @request_buffer = {}
-      @adapter_status = nil
       @adapter_capabilities = @adapter.capabilities
       @initialize_arguments = DEFAULT_INITIALIZE_ARGUMENTS.dup
+      @initialize_arguments['adapterID'] = options['type'] unless options['type'].nil?
+      @initialized = false
       @io = nil
       @pid = nil
       @seq = 0
       @logfile = options['logfile']
       if @logilfe.nil?
         tmpdir = ENV['TMPDIR'] || ENV['TMP'] || ENV['TEMP'] || ENV['USERPROFILE'] || '/tmp'
-        @logfile = "#{tmpdir}/mruby_dap_'#{File.basename(command)}_#{$$}.log"
+        @logfile = "#{tmpdir}/mruby_dap_#{File.basename(command)}_#{$$}.log"
       end
-      @client_breakpoints = []
+      @source_breakpoints = {}
+      @function_breakpoints = {}
       @status = :stop
     end
 
@@ -144,9 +146,7 @@ module DAP
       seq
     end
 
-    def start_debug_adapter(arguments, &block)
-      return unless @io.nil?
-
+    def exec_debug_adapter
       command_str = "#{@adapter.command} #{@adapter.args.join(' ')}"
       log = File.open(@logfile, 'w')
       begin
@@ -158,16 +158,23 @@ module DAP
           sleep 1
           @io = TCPSocket.open('127.0.0.1', @port)
         end
+        $stderr.puts "#{@pid}, start"
       rescue StandardError
         warn 'error'
-        return
       end
+    end
+
+    def start_debug_adapter(arguments = {}, &block)
+      return unless @io.nil?
+
+      exec_debug_adapter
+
       @initialize_arguments.merge!(arguments)
       seq = send_request('initialize', @initialize_arguments)
       res = wait_response(seq)
 
       @adapter.update_capabilities(res['body']) unless res['body'].nil?
-      @status = :running
+      @status = :initializing
       if block_given?
         block.call(res)
       else
@@ -187,17 +194,28 @@ module DAP
       @request_buffer.delete(seq)
     end
 
+    def send_breakpoints(path, lines)
+      source = DAP::Type::Source.new path
+      breakpoints = lines.map { |l| DAP::Type::SourceBreakpoint.new(l) }
+      send_request('setBreakpoints', { 'source' => source, 'breakpoints' => breakpoints })
+    end
+
     def add_breakpoint(path, line)
-      @client_breakpoints.push({
-                                 'source' => DAP::Type::Source.new(path),
-                                 'breakpoint' => DAP::Type::SourceBreakpoint.new(line)
-                               })
+      full_path = File.expand_path path
+      if @source_breakpoints[full_path].nil?
+        @source_breakpoints[full_path] = [line]
+      else
+        @source_breakpoints[full_path].push line
+      end
+      send_breakpoints(full_path, @source_breakpoints[full_path]) if @initialized == true
     end
 
     def delete_breakpoint(path, line)
-      @client_breakpoints.delete_if do |bp|
-        bp['source'].path == File.expand_path(path) && bp['breakpoint'].line == line
-      end
+      full_path = File.expand_path path
+      return if @source_breakpoints[full_path].nil?
+
+      @source_breakpoints[full_path].delete line
+      send_breakpoints(full_path, @source_breakpoints[full_path]) if @initialized == true
     end
   end
 end

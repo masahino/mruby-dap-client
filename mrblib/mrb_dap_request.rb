@@ -21,5 +21,10 @@ module DAP
       ]
       requests.include?(sym)
     end
+
+    def launch(arguments, &block)
+      arguments['type'] = @initialize_arguments['adapterID'] if arguments['type'].nil?
+      send_request('launch', arguments, &block)
+    end
   end
 end
