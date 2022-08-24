@@ -158,7 +158,6 @@ module DAP
           sleep 1
           @io = TCPSocket.open('127.0.0.1', @port)
         end
-        $stderr.puts "#{@pid}, start"
       rescue StandardError
         warn 'error'
       end
