@@ -1,5 +1,11 @@
 class DAPshell
   DAP_CONFIG = {
+    'rdbg' => {
+      server_command: 'rdbg',
+      type: 'rdbg',
+      args: ['-O', '--sock-path=/tmp/dap_shell_rdbg_sock', 'test.rb'],
+      sock_path: '/tmp/dap_shell_rdbg_sock'
+    },
     'mruby' => {
       server_command: '../../mruby-dap-proxy/mruby/bin/mruby-dap-proxy',
       type: 'mruby-dap-proxy'

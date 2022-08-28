@@ -42,6 +42,7 @@ module DAP
 
     def initialize(command, options = {})
       @port = options['port']
+      @sock_path = options['sock_path']
       args = options['args']
       args = [] if args.nil?
       @adapter = Adapter.new(command, args)
@@ -80,7 +81,7 @@ module DAP
         k, v = line.chomp.split(':')
         headers[k] = v.to_i if k == 'Content-Length'
       end
-      message = ''
+      message = nil
       message = JSON.parse(@io.read(headers['Content-Length'])) unless headers['Content-Length'].nil?
 
       [headers, message]
@@ -129,6 +130,8 @@ module DAP
     end
 
     def send_request(command, arguments = {}, &block)
+      #    return unless @adapter.support_request?(command)
+
       message = create_request_message(command, arguments)
       seq = message['seq']
       ret = send_message(message)
@@ -151,16 +154,27 @@ module DAP
       log = File.open(@logfile, 'w')
       begin
         if @port.nil?
-          @io = IO.popen(command_str, 'rb+', err: log.fileno)
-          @pid = @io.pid
+          if @sock_path.nil?
+            @io = IO.popen(command_str, 'rb+', err: log.fileno)
+            @pid = @io.pid
+          else
+            @pid = spawn(command_str, :out => log.fileno, :err => log.fileno)
+            sleep 1
+            @io = UNIXSocket.open(@sock_path)
+            @io.setsockopt(Socket::SOL_SOCKET, Socket::SO_NOSIGPIPE, true)
+          end
         else
-          @pid = spawn(command_str)
+          @pid = spawn(command_str, :out => log.fileno, :err => log.fileno)
           sleep 1
           @io = TCPSocket.open('127.0.0.1', @port)
         end
       rescue StandardError
         warn 'error'
       end
+    end
+
+    def add_adapter_args(target)
+      @adapter.args.push target
     end
 
     def start_debug_adapter(arguments = {}, &block)
@@ -183,7 +197,13 @@ module DAP
 
     def stop_adapter
       send_request('disconnect') if @status == :running
-      Process.kill(15, @pid)
+      begin
+        Process.kill(15, @pid)
+      rescue
+        # no such process
+      end
+      @pid = nil
+      @io = nil
     end
 
     def cancel_request(seq)
@@ -215,6 +235,13 @@ module DAP
 
       @source_breakpoints[full_path].delete line
       send_breakpoints(full_path, @source_breakpoints[full_path]) if @initialized == true
+    end
+
+    def delete_all_source_breakpoints
+      @source_breakpoints.each_key do |full_path|
+        @source_breakpoints[full_path] = []
+        send_breakpoints(full_path, @source_breakpoints[full_path]) if @initialized == true
+      end
     end
   end
 end
