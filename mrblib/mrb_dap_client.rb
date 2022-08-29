@@ -65,6 +65,10 @@ module DAP
       @status = :stop
     end
 
+    def adapter_capabilities
+      @adapter.capabilities
+    end
+
     def update_adapter_capabilities(capabilities)
       @adapter.update_capabilities(capabilities)
     end
