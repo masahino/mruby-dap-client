@@ -2,7 +2,7 @@ module DAP
   # dap client
   class Client
     attr_accessor :recv_buffer, :request_buffer, :status, :io, :file_version, :logfile,
-                  :adapter, :adapter_capabilities, :source_breakpoints
+                  :adapter, :source_breakpoints
 
     DEFAULT_INITIALIZE_ARGUMENTS = {
       # The ID of the client using this adapter.
@@ -48,7 +48,6 @@ module DAP
       @adapter = Adapter.new(command, args)
       @recv_buffer = []
       @request_buffer = {}
-      @adapter_capabilities = @adapter.capabilities
       @initialize_arguments = DEFAULT_INITIALIZE_ARGUMENTS.dup
       @initialize_arguments['adapterID'] = options['type'] unless options['type'].nil?
       @initialized = false

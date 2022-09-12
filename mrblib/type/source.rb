@@ -5,7 +5,7 @@ module DAP
       attr_reader :path, :name
 
       def initialize(path)
-        super
+        # super
         @path = File.expand_path path
         @name = File.basename @path
       end

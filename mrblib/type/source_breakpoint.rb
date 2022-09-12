@@ -5,7 +5,6 @@ module DAP
       attr_reader :line, :column
 
       def initialize(line, column = 1)
-        super
         @line = line
         @column = column
       end
