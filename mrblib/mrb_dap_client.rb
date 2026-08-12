@@ -76,16 +76,42 @@ module DAP
       @seq += 1
     end
 
+    def read_message(io, length)
+      data = ''
+      chunk_size = 4096
+      bytes_read = 0
+      while bytes_read < length
+        remaining_length = length - bytes_read
+        bytes_to_read = [remaining_length, chunk_size].min
+        chunk = io.sysread(bytes_to_read)
+        raise EOFError, "End of file reached before reading #{length} bytes" if chunk.nil?
+
+        bytes_read += chunk.bytesize
+        data += chunk
+      end
+      data
+    end
+
     def recv_message
       headers = {}
-      while (line = @io.gets)
-        break if line == "\r\n"
+      message = nil
+      data = ''
+      loop do
+        char = @io.sysread(1)
+        raise EOFError, 'end of file reached' if char.nil?
 
+        data << char
+        break if data.end_with?("\r\n\r\n")
+      end
+      data.each_line do |line|
         k, v = line.chomp.split(':')
         headers[k] = v.to_i if k == 'Content-Length'
       end
-      message = nil
-      message = JSON.parse(@io.read(headers['Content-Length'])) unless headers['Content-Length'].nil?
+      unless headers['Content-Length'].nil?
+        message = read_message(@io, headers['Content-Length'])
+        # $stderr.puts message if $DEBUG
+        message = JSON.parse(message)
+      end
 
       [headers, message]
     end

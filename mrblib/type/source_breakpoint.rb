@@ -4,7 +4,7 @@ module DAP
     class SourceBreakpoint < Base
       attr_reader :line, :column
 
-      def initialize(line, column = 1)
+      def initialize(line, column = nil)
         @line = line
         @column = column
       end

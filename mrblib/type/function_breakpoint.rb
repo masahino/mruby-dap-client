@@ -3,7 +3,7 @@ module DAP
     # properties of breakpoint
     class FunctionBreakpoint < Base
       def initialize(name)
-        super
+        # super
         @name = name
       end
     end
