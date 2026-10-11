@@ -52,7 +52,7 @@ module DAP
       @initialize_arguments['adapterID'] = options['type'] unless options['type'].nil?
       @initialized = false
       @io = nil
-      @pid = nil
+      @process_io = nil
       @seq = 0
       @logfile = options['logfile']
       if @logilfe.nil?
@@ -87,7 +87,7 @@ module DAP
         raise EOFError, "End of file reached before reading #{length} bytes" if chunk.nil?
 
         bytes_read += chunk.bytesize
-        data += chunk
+        data << chunk
       end
       data
     end
@@ -179,26 +179,28 @@ module DAP
     end
 
     def exec_debug_adapter
-      command_str = "#{@adapter.command} #{@adapter.args.join(' ')}"
+      command_str = adapter_command
       log = File.open(@logfile, 'w')
       begin
         if @port.nil?
           if @sock_path.nil?
-            @io = IO.popen(command_str, 'rb+', err: log.fileno)
-            @pid = @io.pid
+            @process_io = IO.popen(command_str, 'rb+', err: log.fileno)
+            @io = @process_io
           else
-            @pid = spawn(command_str, :out => log.fileno, :err => log.fileno)
+            @process_io = IO.popen(command_str, 'w', out: log.fileno, err: log.fileno)
             sleep 1
             @io = UNIXSocket.open(@sock_path)
             @io.setsockopt(Socket::SOL_SOCKET, Socket::SO_NOSIGPIPE, true)
           end
         else
-          @pid = spawn(command_str, :out => log.fileno, :err => log.fileno)
+          @process_io = IO.popen(command_str, 'w', out: log.fileno, err: log.fileno)
           sleep 1
           @io = TCPSocket.open('127.0.0.1', @port)
         end
       rescue StandardError
         warn 'error'
+      ensure
+        log.close unless log.closed?
       end
     end
 
@@ -226,14 +228,40 @@ module DAP
 
     def stop_adapter
       send_request('disconnect') if @status == :running
+      transport_io = @io
+      process_io = @process_io
+
       begin
-        Process.kill(15, @pid)
-      rescue
+        transport_io.close if !transport_io.nil? && transport_io != process_io && !transport_io.closed?
+        terminate_process(process_io) unless process_io.nil?
+      rescue StandardError
         # no such process
+      ensure
+        begin
+          process_io.close if !process_io.nil? && !process_io.closed?
+        ensure
+          @process_io = nil
+          @io = nil
+        end
       end
-      @pid = nil
-      @io = nil
     end
+
+    private
+
+    def adapter_command
+      command = [@adapter.command] + @adapter.args
+      "exec #{command.map { |argument| shell_quote(argument) }.join(' ')}"
+    end
+
+    def shell_quote(argument)
+      "'#{argument.to_s.gsub("'") { %q('"'"') }}'"
+    end
+
+    def terminate_process(process_io)
+      Process.kill(15, process_io.pid)
+    end
+
+    public
 
     def cancel_request(seq)
       return if @request_buffer[seq].nil?
